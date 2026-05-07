@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>잉크 — 나만의 메모장</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14110f;
+    --bg-2: #1c1815;
+    --paper: #f4ead5;
+    --paper-2: #e8dcc0;
+    --ink: #1a1612;
+    --cream: #f4ead5;
+    --cream-dim: #c9bfa8;
+    --amber: #d4a356;
+    --amber-bright: #f0bd6e;
+    --rust: #b85c3a;
+    --line: rgba(244, 234, 213, 0.08);
+  }
+
+  *{ box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body{ height: 100%; }
+
+  body{
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'IBM Plex Sans KR', -apple-system, sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before{
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  body::after{
+    content: "";
+    position: fixed;
+    top: -20vh; right: -10vw;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle at center, rgba(212, 163, 86, 0.12), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(40px);
+  }
+
+  .stage{
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 56px 48px 120px;
+  }
+
+  header{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 32px;
+    padding-bottom: 36px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 48px;
+  }
+
+  .brand{
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .logomark{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+    padding: 6px 14px;
+    border: 1px solid var(--amber);
+    border-radius: 999px;
+  }
+
+  h1{
+    font-family: 'Gowun Batang', serif;
+    font-weight: 700;
+    font-size: clamp(48px, 6vw, 84px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    color: var(--cream);
+  }
+
+  h1 .accent{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--amber);
+  }
+
+  .tagline{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--cream-dim);
+    max-width: 320px;
+    text-align: right;
+    line-height: 1.5;
+  }
+
+  .tagline .date{
+    display: block;
+    margin-top: 8px;
+    font-style: normal;
+    font-family: 'IBM Plex Sans KR';
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--amber);
+    text-transform: uppercase;
+  }
+
+  .composer{
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 56px;
+    position: relative;
+    box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+
+  .composer::before{
+    content: "01";
+    position: absolute;
+    top: -10px;
+    left: 24px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--amber);
+    background: var(--bg);
+    padding: 0 10px;
+  }
+
+  .composer-label{
+    display: block;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--cream-dim);
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  textarea{
+    width: 100%;
+    min-height: 120px;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+    color: var(--cream);
+    font-family: 'Gowun Batang', serif;
+    font-size: 19px;
+    line-height: 1.7;
+    padding: 8px 0 16px;
+  }
+
+  textarea::placeholder{
+    color: rgba(201, 191, 168, 0.35);
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
+
+  .composer-actions{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px dashed var(--line);
+  }
+
+  .char-count{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--cream-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .char-count span{
+    font-style: normal;
+    color: var(--amber);
+    font-family: 'IBM Plex Sans KR';
+    font-weight: 500;
+  }
+
+  button{
+    cursor: pointer;
+    font-family: 'IBM Plex Sans KR', sans-serif;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+
+  button:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-add{
+    background: var(--amber);
+    color: var(--ink);
+    padding: 12px 28px;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    border-radius: 2px;
+    transition: all 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-add:hover:not(:disabled){
+    background: var(--amber-bright);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--rust);
+  }
+
+  .btn-add:active{
+    transform: translate(0, 0);
+    box-shadow: none;
+  }
+
+  .btn-add .arrow{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .section-meta{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 28px;
+  }
+
+  .section-meta h2{
+    font-family: 'Gowun Batang', serif;
+    font-weight: 400;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+  }
+
+  .section-meta h2 .em{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: var(--amber);
+  }
+
+  .count-badge{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--cream-dim);
+  }
+
+  .count-badge b{
+    color: var(--amber);
+    font-weight: 600;
+    font-style: normal;
+    font-family: 'IBM Plex Sans KR';
+  }
+
+  .sync-state{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 10px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 11px;
+    color: var(--cream-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .sync-dot{
+    width: 6px; height: 6px;
+    border-radius: 999px;
+    background: var(--amber);
+    box-shadow: 0 0 8px rgba(212,163,86,0.6);
+  }
+
+  .sync-state.is-error .sync-dot{ background: var(--rust); box-shadow: 0 0 8px rgba(184,92,58,0.6); }
+  .sync-state.is-loading .sync-dot{ animation: pulse 1.4s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%,100%{ opacity: 0.35; transform: scale(0.8); }
+    50%{ opacity: 1; transform: scale(1); }
+  }
+
+  .memos{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .memo{
+    background: var(--paper);
+    color: var(--ink);
+    padding: 28px 26px 56px;
+    border-radius: 2px;
+    position: relative;
+    font-family: 'Gowun Batang', serif;
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.4),
+      0 12px 28px -8px rgba(0,0,0,0.5);
+    animation: drop 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    transform-origin: top center;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s ease;
+  }
+
+  .memo:nth-child(3n+1){ transform: rotate(-0.8deg); }
+  .memo:nth-child(3n+2){ transform: rotate(0.5deg); }
+  .memo:nth-child(3n+3){ transform: rotate(-0.3deg); background: var(--paper-2); }
+
+  .memo:hover{
+    transform: rotate(0deg) translateY(-4px);
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.4),
+      0 24px 40px -8px rgba(0,0,0,0.55);
+    z-index: 5;
+  }
+
+  .memo::before{
+    content: "";
+    position: absolute;
+    top: -6px; left: 50%;
+    transform: translateX(-50%);
+    width: 50px; height: 16px;
+    background: linear-gradient(180deg, rgba(212,163,86,0.5), rgba(212,163,86,0.3));
+    border-radius: 1px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .memo-meta{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px dashed rgba(26, 22, 18, 0.25);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(26, 22, 18, 0.55);
+  }
+
+  .memo-meta .num{
+    font-style: normal;
+    font-family: 'IBM Plex Sans KR';
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--rust);
+  }
+
+  .memo-body{
+    font-size: 17px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+  }
+
+  .memo-delete{
+    position: absolute;
+    bottom: 16px;
+    right: 18px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: rgba(26, 22, 18, 0.5);
+    padding: 4px 10px;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+  }
+
+  .memo-delete:hover{
+    color: var(--rust);
+    background: rgba(184, 92, 58, 0.08);
+  }
+
+  .memo-delete::before{
+    content: "✕ ";
+    font-style: normal;
+    font-size: 11px;
+    margin-right: 2px;
+  }
+
+  .empty{
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 24px;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+  }
+
+  .empty-mark{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 64px;
+    color: var(--amber);
+    opacity: 0.4;
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+
+  .empty-text{
+    font-family: 'Gowun Batang', serif;
+    font-size: 17px;
+    color: var(--cream-dim);
+    line-height: 1.6;
+  }
+
+  .empty-text em{
+    font-family: 'Fraunces', serif;
+    color: var(--amber);
+  }
+
+  .memo.removing{
+    animation: lift 0.45s cubic-bezier(0.55, 0, 0.78, 0.2) forwards;
+    pointer-events: none;
+  }
+
+  @keyframes drop {
+    0%{ opacity: 0; transform: translateY(-30px) rotate(0deg) scale(0.96); }
+    100%{ opacity: 1; }
+  }
+
+  @keyframes lift {
+    0%{ opacity: 1; }
+    100%{ opacity: 0; transform: translateY(-60px) rotate(8deg) scale(0.85); }
+  }
+
+  footer{
+    margin-top: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--cream-dim);
+    letter-spacing: 0.05em;
+  }
+
+  footer .sig{
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  @media (max-width: 640px){
+    .stage{ padding: 32px 20px 80px; }
+    header{ grid-template-columns: 1fr; align-items: start; }
+    .tagline{ text-align: left; }
+    h1{ font-size: 56px; }
+    .composer{ padding: 22px 20px; }
+    textarea{ font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <header>
+      <div>
+        <div class="brand">
+          <span class="logomark">잉크 / Ink</span>
+        </div>
+        <h1 style="margin-top:18px">생각의 <span class="accent">조각들</span></h1>
+      </div>
+      <p class="tagline">
+        떠오른 생각을 그대로, 잉크처럼.
+        <span class="date" id="todayDate"></span>
+      </p>
+    </header>
+
+    <section class="composer">
+      <span class="composer-label">새로운 메모</span>
+      <textarea id="memoInput" placeholder="여기에 적어보세요. 무엇이든 좋아요." maxlength="2000"></textarea>
+      <div class="composer-actions">
+        <span class="char-count"><span id="charCount">0</span> / 2000</span>
+        <button class="btn-add" id="addBtn">
+          기록하기 <span class="arrow">→</span>
+        </button>
+      </div>
+    </section>
+
+    <div class="section-meta">
+      <h2>모은 <span class="em">메모</span></h2>
+      <span class="count-badge">
+        총 <b id="totalCount">0</b> 개
+        <span class="sync-state is-loading" id="syncState">
+          <span class="sync-dot"></span><span id="syncLabel">연결 중…</span>
+        </span>
+      </span>
+    </div>
+
+    <section class="memos" id="memoList"></section>
+
+    <footer>
+      <span id="footerNote">Firestore 실시간 동기화 — 모든 기기에서 같은 메모를 봅니다</span>
+      <span class="sig">© 잉크</span>
+    </footer>
+  </main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, deleteDoc, doc,
+    onSnapshot, query, orderBy, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ─────────────────────────────────────────────────────────
+  // Firebase 설정 완료 ✓
+  const firebaseConfig = {
+    apiKey: "AIzaSyADE1yv3ldBDH8705FvcfnqRtlpWjA-DIw",
+    authDomain: "memo-test-51bb3.firebaseapp.com",
+    projectId: "memo-test-51bb3",
+    storageBucket: "memo-test-51bb3.firebasestorage.app",
+    messagingSenderId: "640474057514",
+    appId: "1:640474057514:web:e04855e03fa9c11ab06c53"
+  };
+  // ─────────────────────────────────────────────────────────
+
+  const memoInput  = document.getElementById('memoInput');
+  const addBtn     = document.getElementById('addBtn');
+  const memoList   = document.getElementById('memoList');
+  const charCount  = document.getElementById('charCount');
+  const totalCount = document.getElementById('totalCount');
+  const todayDate  = document.getElementById('todayDate');
+  const syncState  = document.getElementById('syncState');
+  const syncLabel  = document.getElementById('syncLabel');
+
+  const now = new Date();
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  todayDate.textContent = `${String(now.getDate()).padStart(2,'0')} ${months[now.getMonth()]} ${now.getFullYear()}`;
+
+  function setSync(state, text){
+    syncState.classList.remove('is-loading','is-error');
+    if(state === 'loading') syncState.classList.add('is-loading');
+    if(state === 'error')   syncState.classList.add('is-error');
+    syncLabel.textContent = text;
+  }
+
+  // 설정값 미입력 가드
+  if(firebaseConfig.apiKey === "YOUR_API_KEY"){
+    setSync('error', 'Firebase 설정 필요');
+    addBtn.disabled = true;
+    memoList.innerHTML = `
+      <div class="empty">
+        <div class="empty-mark">!</div>
+        <p class="empty-text">
+          <em>firebaseConfig</em>를 채워주세요.<br>
+          Firebase 콘솔 → 프로젝트 설정 → 웹 앱에서 복사한 값을<br>
+          <code>memo.html</code> 상단 <em>firebaseConfig</em> 객체에 붙여넣으세요.
+        </p>
+      </div>`;
+    throw new Error("firebaseConfig not set");
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const memosRef = collection(db, "memos");
+
+  function formatDate(ts){
+    if(!ts) return '저장 중…';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yy}.${mm}.${dd}  ${hh}:${mi}`;
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  function render(memos){
+    totalCount.textContent = memos.length;
+
+    if(memos.length === 0){
+      memoList.innerHTML = `
+        <div class="empty">
+          <div class="empty-mark">¶</div>
+          <p class="empty-text">아직 메모가 없어요.<br>첫 번째 <em>생각의 조각</em>을 남겨보세요.</p>
+        </div>`;
+      return;
+    }
+
+    memoList.innerHTML = memos.map((m, i) => `
+      <article class="memo" data-id="${m.id}" style="animation-delay:${i * 0.05}s">
+        <div class="memo-meta">
+          <span class="num">No. ${String(memos.length - i).padStart(3,'0')}</span>
+          <span>${formatDate(m.created)}</span>
+        </div>
+        <div class="memo-body">${escapeHtml(m.text || '')}</div>
+        <button class="memo-delete" data-action="delete">지우기</button>
+      </article>
+    `).join('');
+  }
+
+  async function addMemo(){
+    const text = memoInput.value.trim();
+    if(!text) return;
+    addBtn.disabled = true;
+    try{
+      await addDoc(memosRef, { text, created: serverTimestamp() });
+      memoInput.value = '';
+      charCount.textContent = '0';
+    }catch(err){
+      console.error(err);
+      setSync('error', '저장 실패');
+      alert('저장에 실패했어요. Firestore 규칙과 네트워크를 확인해주세요.');
+    }finally{
+      addBtn.disabled = false;
+    }
+  }
+
+  async function deleteMemo(id, el){
+    el.classList.add('removing');
+    try{
+      await deleteDoc(doc(db, "memos", id));
+    }catch(err){
+      console.error(err);
+      el.classList.remove('removing');
+      alert('지우기에 실패했어요.');
+    }
+  }
+
+  // 실시간 구독
+  const q = query(memosRef, orderBy("created", "desc"));
+  onSnapshot(q,
+    (snap) => {
+      const memos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setSync('ok', '실시간 동기화 중');
+      render(memos);
+    },
+    (err) => {
+      console.error(err);
+      setSync('error', '연결 오류');
+      memoList.innerHTML = `
+        <div class="empty">
+          <div class="empty-mark">!</div>
+          <p class="empty-text">
+            Firestore에 연결할 수 없어요.<br>
+            보안 규칙(읽기 권한)과 <em>firebaseConfig</em>를 확인해주세요.
+          </p>
+        </div>`;
+    }
+  );
+
+  addBtn.addEventListener('click', addMemo);
+
+  memoInput.addEventListener('input', () => {
+    charCount.textContent = memoInput.value.length;
+  });
+
+  memoInput.addEventListener('keydown', (e) => {
+    if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){
+      e.preventDefault();
+      addMemo();
+    }
+  });
+
+  memoList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="delete"]');
+    if(!btn) return;
+    const card = btn.closest('.memo');
+    const id = card.dataset.id;
+    if(confirm('이 메모를 지울까요?')){
+      deleteMemo(id, card);
+    }
+  });
+</script>
+</body>
+</html>
