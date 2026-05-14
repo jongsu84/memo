@@ -289,6 +289,35 @@
     font-family: 'IBM Plex Sans KR';
   }
 
+  .meta-right{
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .btn-clean{
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--cream-dim);
+    border: 1px solid var(--line);
+    padding: 6px 14px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .btn-clean:hover:not(:disabled){
+    color: var(--amber);
+    border-color: var(--amber);
+    background: rgba(212, 163, 86, 0.06);
+  }
+
+  .btn-clean:disabled{
+    opacity: 0.45;
+  }
+
   .sync-state{
     display: inline-flex;
     align-items: center;
@@ -516,12 +545,17 @@
 
     <div class="section-meta">
       <h2>모은 <span class="em">메모</span></h2>
-      <span class="count-badge">
-        총 <b id="totalCount">0</b> 개
-        <span class="sync-state is-loading" id="syncState">
-          <span class="sync-dot"></span><span id="syncLabel">연결 중…</span>
+      <div class="meta-right">
+        <span class="count-badge">
+          총 <b id="totalCount">0</b> 개
+          <span class="sync-state is-loading" id="syncState">
+            <span class="sync-dot"></span><span id="syncLabel">연결 중…</span>
+          </span>
         </span>
-      </span>
+        <button class="btn-clean" id="cleanBtn" title="모든 메모에서 이모지를 한 번에 제거합니다">
+          이모지 정리
+        </button>
+      </div>
     </div>
 
     <section class="memos" id="memoList"></section>
@@ -535,7 +569,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, deleteDoc, doc,
+    getFirestore, collection, addDoc, deleteDoc, doc, updateDoc,
     onSnapshot, query, orderBy, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -559,6 +593,14 @@
   const todayDate  = document.getElementById('todayDate');
   const syncState  = document.getElementById('syncState');
   const syncLabel  = document.getElementById('syncLabel');
+  const cleanBtn   = document.getElementById('cleanBtn');
+
+  // 유니코드 이모지 정규식. 텍스트 이모티콘(:), :-D 등 ASCII 조합)은 보존됨.
+  // 첫 분기는 국기(regional indicator 2개 쌍)를 1개로 묶어서 매칭.
+  // 두 번째 분기는 일반 이모지 + 피츠패트릭 modifier / VS16 / ZWJ 결합 시퀀스를 한 단위로 매칭.
+  const EMOJI_RE = /[\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{303D}\u{3030}\u{20E3}](?:[\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}][\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]?)*/gu;
+
+  let currentMemos = [];
 
   const now = new Date();
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -665,6 +707,7 @@
   onSnapshot(q,
     (snap) => {
       const memos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      currentMemos = memos;
       setSync('ok', '실시간 동기화 중');
       render(memos);
     },
@@ -682,7 +725,53 @@
     }
   );
 
+  async function cleanEmojis(){
+    if(currentMemos.length === 0){
+      alert('정리할 메모가 없어요.');
+      return;
+    }
+    const targets = [];
+    let totalEmoji = 0;
+    for(const m of currentMemos){
+      const text = m.text || '';
+      const matches = text.match(EMOJI_RE);
+      if(matches && matches.length > 0){
+        targets.push({ id: m.id, before: text, after: text.replace(EMOJI_RE, ''), count: matches.length });
+        totalEmoji += matches.length;
+      }
+    }
+    if(targets.length === 0){
+      alert('이모지가 포함된 메모가 없어요.');
+      return;
+    }
+    const ok = confirm(`${targets.length}개 메모에서 이모지 ${totalEmoji}개를 발견했어요.\n모두 제거할까요?\n\n(텍스트 이모티콘 :) :-D 등은 그대로 유지됩니다)`);
+    if(!ok) return;
+
+    cleanBtn.disabled = true;
+    const prevLabel = cleanBtn.textContent;
+    cleanBtn.textContent = '정리 중…';
+    let success = 0;
+    let failed = 0;
+    for(const t of targets){
+      try{
+        await updateDoc(doc(db, "memos", t.id), { text: t.after });
+        success += 1;
+      }catch(err){
+        console.error('이모지 정리 실패:', t.id, err);
+        failed += 1;
+      }
+    }
+    cleanBtn.textContent = prevLabel;
+    cleanBtn.disabled = false;
+    if(failed === 0){
+      alert(`완료! ${success}개 메모에서 ${totalEmoji}개 이모지를 제거했어요.`);
+    }else{
+      alert(`${success}개 성공 / ${failed}개 실패. 콘솔(F12)에서 상세 오류를 확인해주세요.`);
+    }
+  }
+
   addBtn.addEventListener('click', addMemo);
+  cleanBtn.addEventListener('click', cleanEmojis);
 
   memoInput.addEventListener('input', () => {
     charCount.textContent = memoInput.value.length;
