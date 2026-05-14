@@ -133,6 +133,30 @@
     text-transform: uppercase;
   }
 
+  .tagline .weather{
+    display: none;
+    margin-top: 6px;
+    font-style: normal;
+    font-family: 'IBM Plex Sans KR';
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--cream-dim);
+    text-transform: uppercase;
+  }
+
+  .tagline .weather.is-visible{ display: block; }
+
+  .tagline .weather b{
+    color: var(--amber);
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  .tagline .weather .sep{
+    opacity: 0.45;
+    margin: 0 6px;
+  }
+
   .composer{
     background: linear-gradient(180deg, var(--bg-2), var(--bg));
     border: 1px solid var(--line);
@@ -410,6 +434,21 @@
     color: var(--rust);
   }
 
+  .memo-weather{
+    display: inline-block;
+    margin-left: 6px;
+    font-style: normal;
+    font-family: 'IBM Plex Sans KR';
+    font-size: 11px;
+    color: rgba(26, 22, 18, 0.5);
+    letter-spacing: 0.02em;
+  }
+
+  .memo-weather b{
+    color: var(--rust);
+    font-weight: 500;
+  }
+
   .memo-body{
     font-size: 17px;
     line-height: 1.7;
@@ -529,6 +568,9 @@
       <p class="tagline">
         떠오른 생각을 그대로, 잉크처럼.
         <span class="date" id="todayDate"></span>
+        <span class="weather" id="weatherChip" aria-live="polite">
+          <span id="weatherLoc"></span><span class="sep">·</span><b id="weatherTemp"></b><span class="sep">·</span><span id="weatherDesc"></span>
+        </span>
       </p>
     </header>
 
@@ -594,6 +636,10 @@
   const syncState  = document.getElementById('syncState');
   const syncLabel  = document.getElementById('syncLabel');
   const cleanBtn   = document.getElementById('cleanBtn');
+  const weatherChip = document.getElementById('weatherChip');
+  const weatherLoc  = document.getElementById('weatherLoc');
+  const weatherTemp = document.getElementById('weatherTemp');
+  const weatherDesc = document.getElementById('weatherDesc');
 
   // 유니코드 이모지 정규식. 텍스트 이모티콘(:), :-D 등 ASCII 조합)은 보존됨.
   // 첫 분기는 국기(regional indicator 2개 쌍)를 1개로 묶어서 매칭.
@@ -601,6 +647,86 @@
   const EMOJI_RE = /[\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{303D}\u{3030}\u{20E3}](?:[\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}][\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]?)*/gu;
 
   let currentMemos = [];
+  let currentWeather = null;
+
+  // Open-Meteo WMO 날씨 코드 → 한국어. 시각적 이모지는 사용하지 않음(서비스 톤 유지).
+  const WMO_KO = {
+    0:  '맑음',
+    1:  '대체로 맑음',
+    2:  '부분적으로 흐림',
+    3:  '흐림',
+    45: '안개',
+    48: '짙은 안개',
+    51: '약한 이슬비',
+    53: '이슬비',
+    55: '짙은 이슬비',
+    56: '찬 이슬비',
+    57: '짙은 찬 이슬비',
+    61: '약한 비',
+    63: '비',
+    65: '강한 비',
+    66: '찬 비',
+    67: '강한 찬 비',
+    71: '약한 눈',
+    73: '눈',
+    75: '많은 눈',
+    77: '싸락눈',
+    80: '소나기',
+    81: '강한 소나기',
+    82: '폭우',
+    85: '소낙눈',
+    86: '많은 소낙눈',
+    95: '뇌우',
+    96: '우박 뇌우',
+    99: '강한 뇌우',
+  };
+
+  const DEFAULT_LOCATION = { lat: 37.5665, lon: 126.9780, name: '서울' };
+
+  function wmoLabel(code){
+    return WMO_KO[code] ?? '정보 없음';
+  }
+
+  function resolveLocation(){
+    return new Promise((resolve) => {
+      if(!navigator.geolocation) return resolve(DEFAULT_LOCATION);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, name: '현재 위치' }),
+        ()    => resolve(DEFAULT_LOCATION),
+        { timeout: 5000, maximumAge: 10 * 60 * 1000 }
+      );
+    });
+  }
+
+  async function fetchWeather(lat, lon){
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('weather api ' + res.status);
+    const data = await res.json();
+    const cur = data.current || {};
+    return {
+      temp: Math.round(cur.temperature_2m),
+      code: cur.weather_code,
+      label: wmoLabel(cur.weather_code),
+    };
+  }
+
+  async function initWeather(){
+    try{
+      const loc = await resolveLocation();
+      const w = await fetchWeather(loc.lat, loc.lon);
+      currentWeather = { ...w, location: loc.name };
+      weatherLoc.textContent  = loc.name;
+      weatherTemp.textContent = `${w.temp}°C`;
+      weatherDesc.textContent = w.label;
+      weatherChip.classList.add('is-visible');
+    }catch(err){
+      console.warn('날씨 정보를 불러오지 못했어요:', err);
+      // 실패 시 칩은 숨김 상태 유지. 메모 작성 자체에는 영향 없음.
+    }
+  }
+
+  initWeather();
 
   const now = new Date();
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -650,6 +776,13 @@
     }[c]));
   }
 
+  function renderMemoWeather(w){
+    if(!w || w.temp === undefined || w.temp === null) return '';
+    const temp = `${w.temp}°C`;
+    const label = w.label ? ` ${w.label}` : '';
+    return `<span class="memo-weather">· <b>${escapeHtml(temp)}</b>${escapeHtml(label)}</span>`;
+  }
+
   function render(memos){
     totalCount.textContent = memos.length;
 
@@ -666,7 +799,7 @@
       <article class="memo" data-id="${m.id}" style="animation-delay:${i * 0.05}s">
         <div class="memo-meta">
           <span class="num">No. ${String(memos.length - i).padStart(3,'0')}</span>
-          <span>${formatDate(m.created)}</span>
+          <span>${formatDate(m.created)}${renderMemoWeather(m.weather)}</span>
         </div>
         <div class="memo-body">${escapeHtml(m.text || '')}</div>
         <button class="memo-delete" data-action="delete">지우기</button>
@@ -679,7 +812,17 @@
     if(!text) return;
     addBtn.disabled = true;
     try{
-      await addDoc(memosRef, { text, created: serverTimestamp() });
+      const payload = { text, created: serverTimestamp() };
+      if(currentWeather){
+        // 메모를 남긴 그 순간의 날씨를 함께 보관. 기존 메모와는 호환되는 선택 필드.
+        payload.weather = {
+          temp:     currentWeather.temp,
+          code:     currentWeather.code,
+          label:    currentWeather.label,
+          location: currentWeather.location,
+        };
+      }
+      await addDoc(memosRef, payload);
       memoInput.value = '';
       charCount.textContent = '0';
     }catch(err){
