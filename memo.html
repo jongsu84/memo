@@ -144,7 +144,7 @@
     text-transform: uppercase;
   }
 
-  .tagline .weather.is-visible{ display: block; }
+  .tagline .weather.is-visible{ display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 
   .tagline .weather b{
     color: var(--amber);
@@ -155,6 +155,22 @@
   .tagline .weather .sep{
     opacity: 0.45;
     margin: 0 6px;
+  }
+
+  .tagline .weather-icon{
+    width: 26px;
+    height: 26px;
+    margin-right: 4px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+  }
+
+  .memo-weather-icon{
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    vertical-align: -3px;
+    margin: 0 2px;
   }
 
   .composer{
@@ -569,6 +585,7 @@
         떠오른 생각을 그대로, 잉크처럼.
         <span class="date" id="todayDate"></span>
         <span class="weather" id="weatherChip" aria-live="polite">
+          <img class="weather-icon" id="weatherIcon" alt="" />
           <span id="weatherLoc"></span><span class="sep">·</span><b id="weatherTemp"></b><span class="sep">·</span><span id="weatherDesc"></span>
         </span>
       </p>
@@ -637,6 +654,7 @@
   const syncLabel  = document.getElementById('syncLabel');
   const cleanBtn   = document.getElementById('cleanBtn');
   const weatherChip = document.getElementById('weatherChip');
+  const weatherIcon = document.getElementById('weatherIcon');
   const weatherLoc  = document.getElementById('weatherLoc');
   const weatherTemp = document.getElementById('weatherTemp');
   const weatherDesc = document.getElementById('weatherDesc');
@@ -649,7 +667,53 @@
   let currentMemos = [];
   let currentWeather = null;
 
-  // Open-Meteo WMO 날씨 코드 → 한국어. 시각적 이모지는 사용하지 않음(서비스 톤 유지).
+  // bybas/weather-icons CDN (basmilius 동일 저자, npm 미러). MIT 라이선스, 무료.
+  const ICON_BASE = 'https://cdn.jsdelivr.net/npm/@bybas/weather-icons/production/fill/all';
+
+  // WMO 코드 → 아이콘 이름 (낮/밤 구분). 외부 src 주입 방지 위해 [a-z-]만 허용.
+  const WMO_ICON = {
+    0:  { day: 'clear-day',                 night: 'clear-night' },
+    1:  { day: 'partly-cloudy-day',         night: 'partly-cloudy-night' },
+    2:  { day: 'partly-cloudy-day',         night: 'partly-cloudy-night' },
+    3:  { day: 'cloudy',                    night: 'cloudy' },
+    45: { day: 'fog-day',                   night: 'fog-night' },
+    48: { day: 'fog-day',                   night: 'fog-night' },
+    51: { day: 'drizzle',                   night: 'drizzle' },
+    53: { day: 'drizzle',                   night: 'drizzle' },
+    55: { day: 'drizzle',                   night: 'drizzle' },
+    56: { day: 'sleet',                     night: 'sleet' },
+    57: { day: 'sleet',                     night: 'sleet' },
+    61: { day: 'partly-cloudy-day-rain',    night: 'partly-cloudy-night-rain' },
+    63: { day: 'rain',                      night: 'rain' },
+    65: { day: 'rain',                      night: 'rain' },
+    66: { day: 'sleet',                     night: 'sleet' },
+    67: { day: 'sleet',                     night: 'sleet' },
+    71: { day: 'partly-cloudy-day-snow',    night: 'partly-cloudy-night-snow' },
+    73: { day: 'snow',                      night: 'snow' },
+    75: { day: 'snow',                      night: 'snow' },
+    77: { day: 'snowflake',                 night: 'snowflake' },
+    80: { day: 'partly-cloudy-day-rain',    night: 'partly-cloudy-night-rain' },
+    81: { day: 'rain',                      night: 'rain' },
+    82: { day: 'rain',                      night: 'rain' },
+    85: { day: 'partly-cloudy-day-snow',    night: 'partly-cloudy-night-snow' },
+    86: { day: 'snow',                      night: 'snow' },
+    95: { day: 'thunderstorms-day',         night: 'thunderstorms-night' },
+    96: { day: 'thunderstorms-day-rain',    night: 'thunderstorms-night-rain' },
+    99: { day: 'thunderstorms-day-rain',    night: 'thunderstorms-night-rain' },
+  };
+
+  function wmoIcon(code, isDay){
+    const m = WMO_ICON[code];
+    if(!m) return 'not-available';
+    return isDay ? m.day : m.night;
+  }
+
+  // 외부 입력(저장된 메모의 icon 필드)이 URL에 들어가기 전 화이트리스트 검증.
+  function safeIconName(name){
+    return typeof name === 'string' && /^[a-z-]+$/.test(name) ? name : 'not-available';
+  }
+
+  // Open-Meteo WMO 날씨 코드 → 한국어.
   const WMO_KO = {
     0:  '맑음',
     1:  '대체로 맑음',
@@ -699,15 +763,18 @@
   }
 
   async function fetchWeather(lat, lon){
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&timezone=auto`;
     const res = await fetch(url);
     if(!res.ok) throw new Error('weather api ' + res.status);
     const data = await res.json();
     const cur = data.current || {};
+    const isDay = cur.is_day === 1;
     return {
       temp: Math.round(cur.temperature_2m),
       code: cur.weather_code,
       label: wmoLabel(cur.weather_code),
+      icon: wmoIcon(cur.weather_code, isDay),
+      isDay,
     };
   }
 
@@ -716,6 +783,8 @@
       const loc = await resolveLocation();
       const w = await fetchWeather(loc.lat, loc.lon);
       currentWeather = { ...w, location: loc.name };
+      weatherIcon.src = `${ICON_BASE}/${safeIconName(w.icon)}.svg`;
+      weatherIcon.alt = w.label;
       weatherLoc.textContent  = loc.name;
       weatherTemp.textContent = `${w.temp}°C`;
       weatherDesc.textContent = w.label;
@@ -780,7 +849,10 @@
     if(!w || w.temp === undefined || w.temp === null) return '';
     const temp = `${w.temp}°C`;
     const label = w.label ? ` ${w.label}` : '';
-    return `<span class="memo-weather">· <b>${escapeHtml(temp)}</b>${escapeHtml(label)}</span>`;
+    // icon 필드가 없는 옛 메모는 code로부터 낮 아이콘 재계산.
+    const iconName = safeIconName(w.icon || wmoIcon(w.code, true));
+    const iconTag = `<img class="memo-weather-icon" src="${ICON_BASE}/${iconName}.svg" alt="">`;
+    return `<span class="memo-weather">· ${iconTag}<b>${escapeHtml(temp)}</b>${escapeHtml(label)}</span>`;
   }
 
   function render(memos){
@@ -819,6 +891,7 @@
           temp:     currentWeather.temp,
           code:     currentWeather.code,
           label:    currentWeather.label,
+          icon:     currentWeather.icon,
           location: currentWeather.location,
         };
       }
